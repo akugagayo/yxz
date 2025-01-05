@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Streaming</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #333;
+            border-radius: 8px;
+        }
+        .video-container {
+            margin-bottom: 20px;
+        }
+        video {
+            width: 100%;
+            max-height: 70vh;
+            background: #000;
+            border-radius: 8px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .file-list {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .file-list h2 {
+            margin-top: 0;
+        }
+        .file-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #444;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .file-item:hover {
+            background: #555;
+        }
+        .current-playing {
+            background: #4CAF50;
+        }
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 5px;
+            background: #444;
+            color: white;
+            font-size: 16px;
+        }
+        .search-box::placeholder {
+            color: #aaa;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 5px;
+            background: #444;
+            margin-top: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .progress {
+            width: 0%;
+            height: 100%;
+            background: #4CAF50;
+            border-radius: 5px;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Media Streaming</h1>
+        </div>
+
+        <div class="video-container">
+            <video id="videoPlayer" controls>
+                <source src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div class="progress-bar" id="progressBar">
+                <div class="progress" id="progress"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="previousVideo()">⏮️ Previous</button>
+            <button onclick="playPause()">⏯️ Play/Pause</button>
+            <button onclick="nextVideo()">⏭️ Next</button>
+        </div>
+
+        <input type="text" class="search-box" id="searchBox" placeholder="Search videos..." onkeyup="filterVideos()">
+
+        <div class="file-list" id="fileList">
+            <h2>Video List</h2>
+            <div id="videoList"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentVideoIndex = 0;
+        let videos = [];
+        const videoPlayer = document.getElementById('videoPlayer');
+        const progressBar = document.getElementById('progressBar');
+        const progress = document.getElementById('progress');
+
+        // Load video list
+        fetch('/videos')
+            .then(response => response.json())
+            .then(data => {
+                videos = data.map(video => `/video/${video}`);
+                updateVideoList();
+                const lastWatchedVideo = localStorage.getItem('lastWatchedVideo');
+                if (lastWatchedVideo) {
+                    const index = videos.indexOf(lastWatchedVideo);
+                    if (index !== -1) {
+                        playVideo(index);
+                    } else {
+                        playVideo(0);
+                    }
+                } else {
+                    playVideo(0);
+                }
+            })
+            .catch(error => console.error('Error fetching video list:', error));
+
+        function updateVideoList() {
+            const videoList = document.getElementById('videoList');
+            videoList.innerHTML = '';
+            videos.forEach((video, index) => {
+                const div = document.createElement('div');
+                div.className = 'file-item' + (index === currentVideoIndex ? ' current-playing' : '');
+                div.textContent = decodeURIComponent(video.split('/').pop());
+                div.onclick = () => playVideo(index);
+                videoList.appendChild(div);
+            });
+        }
+
+        function playVideo(index) {
+            currentVideoIndex = index;
+            videoPlayer.src = videos[index];
+            videoPlayer.play();
+            localStorage.setItem('lastWatchedVideo', videos[index]);
+            updateVideoList();
+        }
+
+        function playPause() {
+            if (videoPlayer.paused) videoPlayer.play();
+            else videoPlayer.pause();
+        }
+
+        function nextVideo() {
+            currentVideoIndex = (currentVideoIndex + 1) % videos.length;
+            playVideo(currentVideoIndex);
+        }
+
+        function previousVideo() {
+            currentVideoIndex = (currentVideoIndex - 1 + videos.length) % videos.length;
+            playVideo(currentVideoIndex);
+        }
+
+        function filterVideos() {
+            const searchText = document.getElementById('searchBox').value.toLowerCase();
+            const filteredVideos = videos.filter(video => 
+                video.toLowerCase().includes(searchText)
+            );
+            const videoList = document.getElementById('videoList');
+            videoList.innerHTML = '';
+            filteredVideos.forEach((video, index) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.textContent = decodeURIComponent(video.split('/').pop());
+                div.onclick = () => playVideo(videos.indexOf(video));
+                videoList.appendChild(div);
+            });
+        }
+
+        videoPlayer.addEventListener('timeupdate', () => {
+            const percentage = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+            progress.style.width = percentage + '%';
+
+            // Skip intro automatically
+            if (videoPlayer.currentTime < 120) {
+                videoPlayer.currentTime = 120;
+            }
+
+            // Skip outro automatically
+            if (videoPlayer.currentTime >= 1313) { // 21 minutes and 53 seconds
+                nextVideo();
+            }
+        });
+
+        progressBar.addEventListener('click', (e) => {
+            const pos = (e.pageX - progressBar.offsetLeft) / progressBar.offsetWidth;
+            videoPlayer.currentTime = pos * videoPlayer.duration;
+        });
+
+        videoPlayer.addEventListener('ended', () => {
+            nextVideo();
+        });
+    </script>
+</body>
+</html>
